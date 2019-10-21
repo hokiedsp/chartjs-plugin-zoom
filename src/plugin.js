@@ -453,21 +453,7 @@ var zoomPlugin = {
 			$._dragZoomStart = null;
 			$._dragZoomEnd = null;
 
-			if ($._dblclickTimer) {
-				clearTimeout($._dblclickTimer);
-				$._dblclickTimer = null;
-				chartInstance.resetZoom();
-
-				if (typeof zoomOptions.onZoomComplete === 'function') {
-					zoomOptions.onZoomComplete({chart: chartInstance});
-				}
-				return;
-			}
-
-			// perform single-click actions after timed-out
-			$._dblclickTimer = setTimeout(() => {
-				$._dblclickTimer = null;
-
+			const normalAction = () => {
 				var offsetX = beginPoint.target.getBoundingClientRect().left;
 				var startX = Math.min(beginPoint.clientX, event.clientX) - offsetX;
 				var endX = Math.max(beginPoint.clientX, event.clientX) - offsetX;
@@ -520,7 +506,25 @@ var zoomPlugin = {
 				if (typeof zoomOptions.onZoomComplete === 'function') {
 					zoomOptions.onZoomComplete({chart: chartInstance});
 				}
-			}, options.zoom.dblclickDelay);
+			};
+
+			if ($._dblclickTimer) {
+				clearTimeout($._dblclickTimer);
+				$._dblclickTimer = null;
+				chartInstance.resetZoom();
+
+				if (typeof zoomOptions.onZoomComplete === 'function') {
+					zoomOptions.onZoomComplete({chart: chartInstance});
+				}
+			} else if (zoomOptions.dblclick) {
+				// perform single-click actions after waiting for dblclick
+				$._dblclickTimer = setTimeout(() => {
+					$._dblclickTimer = null;
+					normalAction();
+				}, options.zoom.dblclickDelay);
+			} else { // immediately perform single-click action
+				normalAction();
+			}
 		};
 
 		var _scrollTimeout = null;
