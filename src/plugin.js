@@ -425,18 +425,17 @@ var zoomPlugin = {
 		var panThreshold = options.pan && options.pan.threshold;
 
 		chartInstance.$zoom._mouseDownHandler = function(event) {
-			if (chartInstance.$zoom._dblclickTimer){
-				clearTimeout(chartInstance.$zoom._dblclickTimer)
+			if (chartInstance.$zoom._dblclickTimer) {
+				clearTimeout(chartInstance.$zoom._dblclickTimer);
 				chartInstance.$zoom._dblclickTimer = null;
 				chartInstance.resetZoom();
-			} else
-			{		
+			} else {
 				chartInstance.$zoom._dblclickTimer = setTimeout(() => {
 					if (chartInstance.$zoom._dblclickTimer) {
-						node.addEventListener("mousemove", chartInstance.$zoom._mouseMoveHandler);
+						node.addEventListener('mousemove', chartInstance.$zoom._mouseMoveHandler);
 						chartInstance.$zoom._dragZoomStart = event;
 					}
-					chartInstance.$zoom_dblclickTimer = null;
+					chartInstance.$zoom._dblclickTimer = null;
 				}, options.dblclickDelay);
 			}
 		};
