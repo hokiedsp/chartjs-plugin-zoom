@@ -23,7 +23,8 @@ Chart.Zoom.defaults = Chart.defaults.global.plugins.zoom = {
 		enabled: false,
 		mode: 'xy',
 		sensitivity: 3,
-		speed: 0.1
+		speed: 0.1,
+		dblclickDelay: 250
 	}
 };
 
@@ -44,12 +45,13 @@ function resolveOptions(chart, options) {
 	var node = props._node;
 	var zoomEnabled = options.zoom && options.zoom.enabled;
 	var dragEnabled = options.zoom.drag;
+	var dblclickEnabled = options.zoom.dblclick;
 	if (zoomEnabled && !dragEnabled) {
 		node.addEventListener('wheel', props._wheelHandler);
 	} else {
 		node.removeEventListener('wheel', props._wheelHandler);
 	}
-	if (zoomEnabled && dragEnabled) {
+	if (zoomEnabled && (dragEnabled || dblclickEnabled)) {
 		node.addEventListener('mousedown', props._mouseDownHandler);
 		node.ownerDocument.addEventListener('mouseup', props._mouseUpHandler);
 	} else {
@@ -423,8 +425,20 @@ var zoomPlugin = {
 		var panThreshold = options.pan && options.pan.threshold;
 
 		chartInstance.$zoom._mouseDownHandler = function(event) {
-			node.addEventListener('mousemove', chartInstance.$zoom._mouseMoveHandler);
-			chartInstance.$zoom._dragZoomStart = event;
+			if (chartInstance.$zoom._dblclickTimer){
+				clearTimeout(chartInstance.$zoom._dblclickTimer)
+				chartInstance.$zoom._dblclickTimer = null;
+				chartInstance.resetZoom();
+			} else
+			{		
+				chartInstance.$zoom._dblclickTimer = setTimeout(() => {
+					if (chartInstance.$zoom._dblclickTimer) {
+						node.addEventListener("mousemove", chartInstance.$zoom._mouseMoveHandler);
+						chartInstance.$zoom._dragZoomStart = event;
+					}
+					chartInstance.$zoom_dblclickTimer = null;
+				}, options.dblclickDelay);
+			}
 		};
 
 		chartInstance.$zoom._mouseMoveHandler = function(event) {
@@ -435,6 +449,7 @@ var zoomPlugin = {
 		};
 
 		chartInstance.$zoom._mouseUpHandler = function(event) {
+
 			if (!chartInstance.$zoom._dragZoomStart) {
 				return;
 			}
