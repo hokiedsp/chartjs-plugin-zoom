@@ -425,20 +425,8 @@ var zoomPlugin = {
 		var panThreshold = options.pan && options.pan.threshold;
 
 		chartInstance.$zoom._mouseDownHandler = function(event) {
-			let $ = chartInstance.$zoom;
-			if ($._dblclickTimer) {
-				clearTimeout($._dblclickTimer);
-				$._dblclickTimer = null;
-				chartInstance.resetZoom();
-			} else {
-				$._dblclickTimer = setTimeout(() => {
-					if ($._dblclickTimer) {
-						node.addEventListener('mousemove', $._mouseMoveHandler);
-						$._dragZoomStart = event;
-						$._dblclickTimer = null;
-					}
-				}, options.zoom.dblclickDelay);
-			}
+			chartInstance.$zoom._dragZoomStart = event;
+			node.addEventListener('mousemove', chartInstance.$zoom._mouseMoveHandler);
 		};
 
 		chartInstance.$zoom._mouseMoveHandler = function(event) {
@@ -449,53 +437,68 @@ var zoomPlugin = {
 		};
 
 		chartInstance.$zoom._mouseUpHandler = function(event) {
+			let $ = chartInstance.$zoom;
 
-			if (!chartInstance.$zoom._dragZoomStart) {
+			if (!$._dragZoomStart) {
 				return;
 			}
 
-			node.removeEventListener('mousemove', chartInstance.$zoom._mouseMoveHandler);
-
-			var beginPoint = chartInstance.$zoom._dragZoomStart;
-
-			var offsetX = beginPoint.target.getBoundingClientRect().left;
-			var startX = Math.min(beginPoint.clientX, event.clientX) - offsetX;
-			var endX = Math.max(beginPoint.clientX, event.clientX) - offsetX;
-
-			var offsetY = beginPoint.target.getBoundingClientRect().top;
-			var startY = Math.min(beginPoint.clientY, event.clientY) - offsetY;
-			var endY = Math.max(beginPoint.clientY, event.clientY) - offsetY;
-
-			var dragDistanceX = endX - startX;
-			var dragDistanceY = endY - startY;
+			node.removeEventListener('mousemove', $._mouseMoveHandler);
+			var beginPoint = $._dragZoomStart;
+			var zoomOptions = $._options.zoom;
 
 			// Remove drag start and end before chart update to stop drawing selected area
-			chartInstance.$zoom._dragZoomStart = null;
-			chartInstance.$zoom._dragZoomEnd = null;
+			$._dragZoomStart = null;
+			$._dragZoomEnd = null;
 
-			if (dragDistanceX <= 0 && dragDistanceY <= 0) {
-				return;
+			if ($._dblclickTimer) {
+				clearTimeout($._dblclickTimer);
+				$._dblclickTimer = null;
+				chartInstance.resetZoom();
+
+				if (typeof zoomOptions.onZoomComplete === 'function') {
+					zoomOptions.onZoomComplete({chart: chartInstance});
+				}
 			}
 
-			var chartArea = chartInstance.chartArea;
+			// perform single-click actions after timed-out
+			$._dblclickTimer = setTimeout(() => {
+				$._dblclickTimer = null;
 
-			var zoomOptions = chartInstance.$zoom._options.zoom;
-			var chartDistanceX = chartArea.right - chartArea.left;
-			var xEnabled = directionEnabled(zoomOptions.mode, 'x');
-			var zoomX = xEnabled && dragDistanceX ? 1 + ((chartDistanceX - dragDistanceX) / chartDistanceX) : 1;
+				var offsetX = beginPoint.target.getBoundingClientRect().left;
+				var startX = Math.min(beginPoint.clientX, event.clientX) - offsetX;
+				var endX = Math.max(beginPoint.clientX, event.clientX) - offsetX;
 
-			var chartDistanceY = chartArea.bottom - chartArea.top;
-			var yEnabled = directionEnabled(zoomOptions.mode, 'y');
-			var zoomY = yEnabled && dragDistanceY ? 1 + ((chartDistanceY - dragDistanceY) / chartDistanceY) : 1;
+				var offsetY = beginPoint.target.getBoundingClientRect().top;
+				var startY = Math.min(beginPoint.clientY, event.clientY) - offsetY;
+				var endY = Math.max(beginPoint.clientY, event.clientY) - offsetY;
 
-			doZoom(chartInstance, zoomX, zoomY, {
-				x: (startX - chartArea.left) / (1 - dragDistanceX / chartDistanceX) + chartArea.left,
-				y: (startY - chartArea.top) / (1 - dragDistanceY / chartDistanceY) + chartArea.top
-			});
+				var dragDistanceX = endX - startX;
+				var dragDistanceY = endY - startY;
 
-			if (typeof zoomOptions.onZoomComplete === 'function') {
-				zoomOptions.onZoomComplete({chart: chartInstance});
-			}
+				if (dragDistanceX <= 0 && dragDistanceY <= 0) {
+					return;
+				}
+
+				var chartArea = chartInstance.chartArea;
+
+				var chartDistanceX = chartArea.right - chartArea.left;
+				var xEnabled = directionEnabled(zoomOptions.mode, 'x');
+				var zoomX = xEnabled && dragDistanceX ? 1 + ((chartDistanceX - dragDistanceX) / chartDistanceX) : 1;
+
+				var chartDistanceY = chartArea.bottom - chartArea.top;
+				var yEnabled = directionEnabled(zoomOptions.mode, 'y');
+				var zoomY = yEnabled && dragDistanceY ? 1 + ((chartDistanceY - dragDistanceY) / chartDistanceY) : 1;
+
+				doZoom(chartInstance, zoomX, zoomY, {
+					x: (startX - chartArea.left) / (1 - dragDistanceX / chartDistanceX) + chartArea.left,
+					y: (startY - chartArea.top) / (1 - dragDistanceY / chartDistanceY) + chartArea.top
+				});
+
+				if (typeof zoomOptions.onZoomComplete === 'function') {
+					zoomOptions.onZoomComplete({chart: chartInstance});
+				}
+			}, options.zoom.dblclickDelay);
 		};
 
 		var _scrollTimeout = null;
