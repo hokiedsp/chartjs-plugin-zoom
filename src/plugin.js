@@ -427,20 +427,8 @@ var zoomPlugin = {
 		var panThreshold = options.pan && options.pan.threshold;
 
 		chartInstance.$zoom._mouseDownHandler = function(event) {
-			let $ = chartInstance.$zoom;
-			if ($._dblclickTimer) {
-				clearTimeout($._dblclickTimer);
-				$._dblclickTimer = null;
-				chartInstance.resetZoom();
-			} else {
-				$._dblclickTimer = setTimeout(() => {
-					if ($._dblclickTimer) {
-						node.addEventListener('mousemove', $._mouseMoveHandler);
-						$._dragZoomStart = event;
-						$._dblclickTimer = null;
-					}
-				}, options.zoom.dblclickDelay);
-			}
+			chartInstance.$zoom._dragZoomStart = event;
+			node.addEventListener('mousemove', chartInstance.$zoom._mouseMoveHandler);
 		};
 
 		chartInstance.$zoom._mouseMoveHandler = function(event) {
@@ -451,72 +439,88 @@ var zoomPlugin = {
 		};
 
 		chartInstance.$zoom._mouseUpHandler = function(event) {
-			if (!chartInstance.$zoom._dragZoomStart) {
+			let $ = chartInstance.$zoom;
+
+			if (!$._dragZoomStart) {
 				return;
 			}
 
-			node.removeEventListener('mousemove', chartInstance.$zoom._mouseMoveHandler);
-
-			var beginPoint = chartInstance.$zoom._dragZoomStart;
-
-			var offsetX = beginPoint.target.getBoundingClientRect().left;
-			var startX = Math.min(beginPoint.clientX, event.clientX) - offsetX;
-			var endX = Math.max(beginPoint.clientX, event.clientX) - offsetX;
-
-			var offsetY = beginPoint.target.getBoundingClientRect().top;
-			var startY = Math.min(beginPoint.clientY, event.clientY) - offsetY;
-			var endY = Math.max(beginPoint.clientY, event.clientY) - offsetY;
-
-			var dragDistanceX = endX - startX;
-			var dragDistanceY = endY - startY;
+			node.removeEventListener('mousemove', $._mouseMoveHandler);
+			var beginPoint = $._dragZoomStart;
+			var zoomOptions = $._options.zoom;
 
 			// Remove drag start and end before chart update to stop drawing selected area
-			chartInstance.$zoom._dragZoomStart = null;
-			chartInstance.$zoom._dragZoomEnd = null;
+			$._dragZoomStart = null;
+			$._dragZoomEnd = null;
 
-			var zoomOptions = chartInstance.$zoom._options.zoom;
-			var lim = zoomOptions.clickLimit
+			if ($._dblclickTimer) {
+				clearTimeout($._dblclickTimer);
+				$._dblclickTimer = null;
+				chartInstance.resetZoom();
 
-			if (dragDistanceX < -lim && dragDistanceY < -lim) {
+				if (typeof zoomOptions.onZoomComplete === 'function') {
+					zoomOptions.onZoomComplete({chart: chartInstance});
+				}
 				return;
 			}
 
-			var chartArea = chartInstance.chartArea;
+			// perform single-click actions after timed-out
+			$._dblclickTimer = setTimeout(() => {
+				$._dblclickTimer = null;
 
-			var xEnabled = directionEnabled(zoomOptions.mode, 'x');
-			var yEnabled = directionEnabled(zoomOptions.mode, 'y');
+				var offsetX = beginPoint.target.getBoundingClientRect().left;
+				var startX = Math.min(beginPoint.clientX, event.clientX) - offsetX;
+				var endX = Math.max(beginPoint.clientX, event.clientX) - offsetX;
 
-			var zoomX,zoomY,center;
+				var offsetY = beginPoint.target.getBoundingClientRect().top;
+				var startY = Math.min(beginPoint.clientY, event.clientY) - offsetY;
+				var endY = Math.max(beginPoint.clientY, event.clientY) - offsetY;
 
-			if (zoomOptions.click && !(zoomOptions.drag && (dragDistanceX>lim || dragDistanceY>lim)))
-			{
-				let zoomout = zoomOptions.clickZoom == 'out'; // false to zoom out
-				if (event.ctrlKey) zoomout = !zoomout; // ctrl key reverses the function
-				let clickFactor = 1 + 2 * zoomOptions.speed;
-				if (zoomout) clickFactor = 1 / clickFactor;
+				var dragDistanceX = endX - startX;
+				var dragDistanceY = endY - startY;
 
-				zoomX = xEnabled ? clickFactor : 1;
-				zoomY = yEnabled ? clickFactor : 1;
-				center = { x: endX, y: endY };
-			}
-			else // drag
-			{
-				var chartDistanceX = chartArea.right - chartArea.left;
-				zoomX = xEnabled && dragDistanceX ? 1 + ((chartDistanceX - dragDistanceX) / chartDistanceX) : 1;
+				var lim = zoomOptions.clickLimit
 
-				var chartDistanceY = chartArea.bottom - chartArea.top;
-				zoomY = yEnabled && dragDistanceY ? 1 + ((chartDistanceY - dragDistanceY) / chartDistanceY) : 1;
+				if (dragDistanceX < -lim && dragDistanceY < -lim) {
+					return;
+				}
 
-				center = {
-					x: (startX - chartArea.left) / (1 - dragDistanceX / chartDistanceX) + chartArea.left,
-					y: (startY - chartArea.top) / (1 - dragDistanceY / chartDistanceY) + chartArea.top};
-			}
-			
-			doZoom(chartInstance, zoomX, zoomY, center);
+				var xEnabled = directionEnabled(zoomOptions.mode, 'x');
+				var yEnabled = directionEnabled(zoomOptions.mode, 'y');
 
-			if (typeof zoomOptions.onZoomComplete === 'function') {
-				zoomOptions.onZoomComplete({chart: chartInstance});
-			}
+				var zoomX,zoomY,center;
+
+				if (zoomOptions.click && !(zoomOptions.drag && (dragDistanceX>lim || dragDistanceY>lim)))
+				{
+					let zoomout = zoomOptions.clickZoom == 'out'; // false to zoom out
+					if (event.ctrlKey) zoomout = !zoomout; // ctrl key reverses the function
+					let clickFactor = 1 + 2 * zoomOptions.speed;
+					if (zoomout) clickFactor = 1 / clickFactor;
+
+					zoomX = xEnabled ? clickFactor : 1;
+					zoomY = yEnabled ? clickFactor : 1;
+					center = { x: endX, y: endY };
+				}
+				else // drag
+				{
+					var chartArea = chartInstance.chartArea;
+					var chartDistanceX = chartArea.right - chartArea.left;
+					zoomX = xEnabled && dragDistanceX ? 1 + ((chartDistanceX - dragDistanceX) / chartDistanceX) : 1;
+
+					var chartDistanceY = chartArea.bottom - chartArea.top;
+					zoomY = yEnabled && dragDistanceY ? 1 + ((chartDistanceY - dragDistanceY) / chartDistanceY) : 1;
+
+					center = {
+						x: (startX - chartArea.left) / (1 - dragDistanceX / chartDistanceX) + chartArea.left,
+						y: (startY - chartArea.top) / (1 - dragDistanceY / chartDistanceY) + chartArea.top};
+				}
+				
+				doZoom(chartInstance, zoomX, zoomY, center);
+
+				if (typeof zoomOptions.onZoomComplete === 'function') {
+					zoomOptions.onZoomComplete({chart: chartInstance});
+				}
+			}, options.zoom.dblclickDelay);
 		};
 
 		var _scrollTimeout = null;
